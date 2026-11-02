@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judo Daily Dozen Worksheet</title>
+<style>
+  :root { --band:#66CCFF; --ink:#111; --line:#555; --bg:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; font-family: Verdana, Geneva, sans-serif; font-size:14px; color:var(--ink); background:var(--bg); }
+  h1 { font-size:20px; margin:0 0 12px; }
+  .board { max-width:1100px; background:var(--band); border:1px solid var(--line); padding:6px; margin-bottom:16px; }
+  .tiers, .grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; }
+  .tiers div { font-weight:bold; padding:4px 6px; }
+  .cell { background:#fff; border:1px solid var(--line); padding:10px; }
+  .cell .head { display:block; font-weight:bold; margin:0 0 4px; }
+  .cell .head.grip { margin-top:16px; }
+  .tier-tag { display:none; font-weight:normal; font-size:12px; color:#444; }
+  .cell select { width:100%; font:inherit; font-size:13px; }
+  .custom { display:block; font-weight:bold; font-size:13px; margin-top:6px; }
+  .custom input { display:block; width:100%; font:inherit; font-weight:normal; margin-top:3px; padding:3px 4px; }
+  .namebar { max-width:1100px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:24px; }
+  .namebar input { font:inherit; padding:4px 6px; width:min(320px, 100%); }
+  button { font:inherit; padding:6px 12px; cursor:pointer; }
+  @media (max-width:760px) {
+    .tiers { display:none; }
+    .grid { grid-template-columns:1fr; }
+    .tier-tag { display:inline; }
+  }
+
+  #sheet { display:none; max-width:1100px; }
+  #sheet table { width:100%; border-collapse:collapse; font-size:16px; }
+  #sheet th, #sheet td { border:1px solid #000; padding:8px; text-align:left; vertical-align:top; }
+  #sheet .title { text-align:center; font-size:20px; padding:20px; }
+  #sheet tbody th { text-align:center; width:4em; }
+  #sheet tr.blank > * { height:2.4em; }
+  .sheet-actions { margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; }
+  body.show-sheet #form-view { display:none; }
+  body.show-sheet #sheet { display:block; }
+
+  @media print {
+    @page { size: landscape; margin: 0.5in; }
+    body { padding:0; }
+    .sheet-actions { display:none; }
+    #sheet { max-width:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="form-view">
+  <h1>Judo Daily Dozen Worksheet</h1>
+
+  <div class="board">
+    <div class="tiers">
+      <div>TIER 1 SELECTIONS<br>High familiarity</div>
+      <div>TIER 2 SELECTIONS<br>Moderate familiarity</div>
+      <div>TIER 3 SELECTIONS<br>Lesser known</div>
+    </div>
+    <div class="grid" id="nage-grid"></div>
+  </div>
+
+  <div class="board">
+    <div class="grid" id="ne-grid"></div>
+  </div>
+
+  <div class="namebar">
+    <label for="judoname">Please enter your name:</label>
+    <input type="text" id="judoname" maxlength="90" data-save>
+    <button type="button" id="generate">Generate Daily Dozen Worksheet</button>
+    <button type="button" id="clear">Clear all</button>
+  </div>
+</div>
+
+<div id="sheet">
+  <table>
+    <thead>
+      <tr><th class="title" colspan="4" id="sheet-title"></th></tr>
+      <tr><th>SEGMENT</th><th>REFERENCE</th><th>TECHNIQUE</th><th>ATTACKING GRIP</th></tr>
+    </thead>
+    <tbody id="sheet-body"></tbody>
+  </table>
+  <div class="sheet-actions">
+    <button type="button" id="print">Print This Page (landscape works best)</button>
+    <button type="button" id="edit">Back to selections</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Data ----------
+  const group = (cat, names) => names.map(n => cat + ": " + n);
+
+  const THROWS = [
+    ...group("Tachi-waza/Ashi-waza", [
+      "Ashi guruma (Leg wheel)",
+      "De Ashi Barai (Advanced foot sweep)",
+      "Hane goshi gaeshi (Hip spring counter)",
+      "Harai goshi gaeshi (Hip sweep counter)",
+      "Harai tsurikomi ashi (Lift-pull foot sweep)",
+      "Hiza guruma (Knee wheel)",
+      "Kosoto gake (Small outer hook)",
+      "Kosoto gari (Small outer reap)",
+      "Kouchi gari (Small inner reap)",
+      "O guruma (Large wheel)",
+      "Okuri Ashi Barai (Sliding foot sweep)",
+      "Osoto gaeshi (Big outer reap counter)",
+      "Osoto gari (Big outer reap)",
+      "Osoto guruma (Big outer wheel)",
+      "Osoto otoshi (Big outer drop)",
+      "Ouchi gaeshi (Big inner reap counter)",
+      "Ouchi gari (Big inner reap)",
+      "Sasae tsurikomi ashi (Propping and drawing ankle throw)",
+      "Tsubame gaeshi (Swallow counter)",
+      "Uchi mata (Inner-thigh)",
+      "Uchi mata gaeshi (Inner-thigh counter)"
+    ]),
+    ...group("Tachi-waza/Koshi-waza", [
+      "Daki age (Hugging high lift. (Forbidden in competition.))",
+      "Hane goshi (Spring hip throw)",
+      "Harai goshi (Sweeping hip throw)",
+      "Koshi guruma (Hip wheel)",
+      "O goshi (Full hip throw)",
+      "Sode tsurikomi goshi (Sleeve lifting and pulling hip throw)",
+      "Tobi goshi (Flying/surfing hip throw)",
+      "Tsuri goshi (Lifting hip throw)",
+      "Tsurikomi goshi (Lifting and pulling hip throw)",
+      "Uki goshi (Floating half-hip throw)",
+      "Ushiro goshi (Rear throw)",
+      "Ushiro Guruma (Rear wheel)",
+      "Utsuri goshi (Hip shift)"
+    ]),
+    ...group("Tachi-waza/Te-waza", [
+      "Ippon seoinage (One arm shoulder throw)",
+      "Kata guruma (Shoulder wheel)",
+      "Kibisu gaeshi (One-hand reversal)",
+      "Kouchi gaeshi (Small inner reap reversal)",
+      "Morote gari (Two-hand reap)",
+      "Obi otoshi (Belt drop)",
+      "Seoi nage (Lifting shoulder throw or back carry throw)",
+      "Seoi otoshi (Kneeling shoulder drop)",
+      "Sukui nage (Scoop throw)",
+      "Tai otoshi (Body drop)",
+      "Te Guruma (Hand Wheel)",
+      "Uchi mata sukashi (Inner thigh void throw)",
+      "Uki otoshi (Floating drop)",
+      "Yama arashi (Mountain storm)"
+    ]),
+    ...group("Sutemi-waza/Ma-sutemi", [
+      "Hikikomi gaeshi (Pulling in reversal)",
+      "Sumi gaeshi (Corner reversal)",
+      "Tawara gaeshi (Rice bag reversal throw)",
+      "Tomoe nage (Circle throw)",
+      "Ura nage (Rear throw)"
+    ]),
+    ...group("Sutemi-waza/Yoko-sutemi", [
+      "Daki wakare (High separation)",
+      "Hane makikomi (Springing wraparound)",
+      "Harai makikomi (Hip sweep wraparound)",
+      "Kani basami (Crab or scissors throw. (Forbidden in competition.))",
+      "Kawazu gake (One-leg entanglement. (Forbidden in competition.))",
+      "Osoto makikomi (Big outer wraparound)",
+      "Soto makikomi (Outer wraparound)",
+      "Tama guruma (Jade wheel)",
+      "Tani otoshi (Valley drop)",
+      "Uchi makikomi (Inner wraparound)",
+      "Uchi mata makikomi (Inner thigh wraparound)",
+      "Ude gaeshi (Arm reversal)",
+      "Uki waza (Floating drop)",
+      "Yoko gake (Side prop)",
+      "Yoko guruma (Side wheel)",
+      "Yoko otoshi (Side drop)",
+      "Yoko Tomoe Nage (Side circle throw)",
+      "Yoko wakare (Side separation)"
+    ])
+  ];
+
+  const GRIPS = [
+    "Dominant E Grip", "B+ Grip", "Cross Head C7", "Deep Collar (C3)", "Grip Sequence 2",
+    "Grip Stop A", "Grip Stop B", "Grip Stop C", "Grip Stop D",
+    "Gs2 Double Sleeve", "Gs2 Sleeve/Back", "Gs2 Sleeve/C3", "Gs2 Sleeve/Lapel",
+    "Obi Tori Grip", "R Hand Behind Back (C5)", "R Hand Deep Back (C7)", "Sleeve / Back Grip"
+  ];
+
+  const NE_WAZA_OFFICIAL = [
+    ...group("Osaekomi-Waza (Pinning)", [
+      "Kesa Gatame (Scarf Hold)",
+      "Kuzure Kesa Gatame (Broken Scarf Hold)",
+      "Makura Kesa Gatame (Pillow Scarf Hold)",
+      "Kami Shiho Gatame (Top four-corner hold)",
+      "Kuzure Kami Shiho Gatame (Modified top four-corner hold)",
+      "Kata Gatame (Shoulder hold)",
+      "Yoko Shiho Gatame (Side four corner hold)",
+      "Kuzure Yoko Shiho Gatame (Broken Side four corner hold)",
+      "Ushiro Kesa Gatame (Reverse Scarf Hold)",
+      "Tate Shiho Gatame (Straight four corner hold)",
+      "Kuzure Tate Shiho Gatame No1 (Modified Straight four corner hold 1)",
+      "Kuzure Tate Shiho Gatame No2 (Modified Straight four corner hold 2)",
+      "Ura Shiho Gatame (Reverse four corner hold)"
+    ]),
+    ...group("Shime-Waza (Choking)", [
+      "Gyaku Juji Jime (Reverse Cross Choke)",
+      "Hadaka Jime (Rear Naked Choke)",
+      "Jigoku jime (Hell strangle)",
+      "Kagato Jime (Shin choke)",
+      "Kata Ha Jime (Single Wing Choke)",
+      "Kata Juji Jime (Half cross strangle)",
+      "Kata Te Jime (One hand Choke)",
+      "Koshi Jime (Clock Choke)",
+      "Morote Jime (Both hands strangle)",
+      "Nami Juji Jime (Normal cross strangle)",
+      "Okuri Eri Jime (Sliding Lapel Choke)",
+      "Ryo Te Jime (Two Handed Choke)",
+      "Sankaku Jime (Triangle Choke)",
+      "Sode Guruma Jime (Sleeve Wheel Choke)",
+      "Tsukkomi Jime (Thrust Choke)"
+    ]),
+    ...group("Kansetsu-Waza (Joint Locks)", [
+      "Ude Hishigi Ashi Gatame (Leg Lock)",
+      "Ude Hishigi Hara Gatame (Stomach Lock)",
+      "Ude Hishigi Hiza Gatame (Knee Lock)",
+      "Ude Hishigi Juji Gatame (Cross Lock)",
+      "Ude Hishigi Te Gatame (Hand Lock)",
+      "Ude Hishigi Waki Gatame (Armpit Lock)",
+      "Ude Hishigi Ude Gatame (Straight Arm Lock)",
+      "Ude Hishigi Sankaku Gatame (Triangular Lock)",
+      "Ude Garami (Bent Arm Lock)",
+      "KATA-ASHI-HISHIGI (Single Leg Crush or Dislocation)",
+      "RYO-ASHI-HISHIGI (Double Leg Crush or Dislocation)",
+      "ASHI-DORI-GARAMI (Entangled Leg Dislocation)",
+      "HIZA-HISHIGI (Knee Crush or Dislocation)",
+      "TATE-SHIHO-HIZA-HISHIGI (Dislocation of Knees in 8th Immobilization)"
+    ]),
+    ...group("Ma-sutemi", [
+      "ASHI-MAKIKOMI (Inward Winding of Leg)",
+      "KANI-GARAMI (Crab Entanglement)",
+      "ASHI-KANNUKI (Transversal Blocking of Leg)",
+      "HIZA-TORI-GARAMI (Knee Entanglement)",
+      "KUBI-HISHIGI (Dislocation of Neck)"
+    ]),
+    ...group("Yoko-sutemi", [
+      "OSAE-HISHIGI (Dislocation in Immobilization)",
+      "TATE-HISHIGI (Standing Dislocation)",
+      "GYAKU-HISHIGI (Dislocation by Elongation)",
+      "TOMOE-HISHIGI (Dislocation in Circle)",
+      "KESA-GATAME-KUBI-HISHIGI (Dislocation of Neck in Scarf Hold)"
+    ])
+  ];
+
+  // Ne-waza curriculum tree: "depth|name"
+  const NE_WAZA_TREE = `
+0|Bottom Position
+1|Foot Post Series
+2|Cross Knee
+2|Hip Post
+2|Knee Post
+2|Opposing Hip  Knee
+1|Double Hip Roll Up
+1|Hand And Arm Trap Series
+2|Sleeve  Back
+2|Ude Garami Break
+2|Rolling Underhook
+2|Cross Lapel Trap
+2|Kata Gatame
+1|Downward Ude Garami Trap
+1|Niju Garami Or Do Osae
+2|Dynamic Juji Gatame
+2|KneeIn Turnover
+2|Reverse KneeIn Turnover
+2|Omote Sankaku Jime
+2|Gyaku Juji Jime
+2|Sankaku Garami
+1|Fusegi From Osaekomi
+2|Kesa Gatame
+3|Bridge And Roll
+3|Uphill Turn
+3|Leg Over Face
+3|Sit Up
+3|Backward Roll
+2|Kata Gatame
+3|Backward Roll
+2|Yoko Shiho Gatame
+3|Sankaku Turnover
+3|Shrimp In
+3|Push To Single Entanglement
+3|Longitudinal (In Line) Roll
+2|Kami Shiho Gatame
+3|Reverse Shrimp
+3|Opposing Hand To Foot
+3|Backward Roll
+2|Tate Shiho Gatame
+3|Inner Leg Trap Turn
+3|Push Down To Single Entanglement
+0|Top Position
+1|Uke In Turtle
+2|Turnovers
+3|Basic Hand Prop Cross Face
+3|Reverse Hand Prop Cross Face
+3|Close Armpit Turn
+3|Cross Lapel Turn To Kami Shiho
+2|Juji Gatame Series
+3|Juji Gatame Roll (Uke Forward Roll)
+3|Juji Gatame Roll With Far Leg Pull
+3|Juji Gatame Roll With Step Around
+3|Ude Garami Roll
+3|Okuri Eri Turnover  Juji Gatame
+3|Okuri Eri Trap To Reverse Juji Turn
+2|Koshi Jime Series
+3|Arm Trap Koshi Jime
+3|Same Side Armpit Over Koshi Jime
+3|Far Leg Reach Koshi Jime
+3|Transition To Okuri Eri  Yoko Shiho
+3|Knee Across Neck Koshi Jime (Hiza Jime)
+2|Sankaku Series
+3|Yoko Sankaku Jime
+3|Reverse Yoko Sankaku Jime
+2|Miscellaneous Attacks
+3|British Roll Okuri Eri Jime
+3|Hooks In To Hadaka Jime
+3|Jigoku Jime
+2|Uke Face Down
+3|Arm ThroughPosition To Key Lock Turn
+3|Arm ThroughPosition To Waki Gatame
+3|Diagonal Leg Turnover
+3|Side Corners Pull Turnover
+3|Pick Up To Hooks In (Hadaka Jime)
+3|Koshi Jime
+2|Osaekomi
+3|Kesa Gatame
+3|Ushiro Kesa Gatame
+3|Kata Gatame
+3|Yoko Shiho Gatame
+3|Tate Shiho Gatame
+3|Kami Shiho Gatame
+3|Uki Gatame
+2|Osaekomi Build Outs
+3|Kesa Gatame To Juji Gatame
+3|Kesa Gatame To Sankaku Garami
+3|Kesa Gatame To Ude Garami (Far Side)
+3|Yoko Shiho Gatame To Ude Garami
+3|Kami Shiho Gatame To Ude Garami
+3|Kami Shiho Gatame To Sankaku Jime
+3|Tate Shiho Gatame To Juji Gatame
+3|Tate Shiho Gatame To Juji Jime Series
+1|Leg Extrication
+2|Single Leg Extrication
+3|Far Side Key Lock To Knee Pull
+2|Double Leg Extrication
+3|Third Circle
+4|Foot Throw
+4|Upward Foot Drive
+4|Same Side Shin Pin
+4|Leg Wrap
+4|Matador(At Bent Knees)
+3|Second Circle
+4|Uke Split Pass Through
+4|Two UnderPass Around
+3|First Circle
+4|Step Over
+4|Foot Separation And Throw Over
+`.trim().split("\n").map(line => {
+    const i = line.indexOf("|");
+    return { depth: Number(line.slice(0, i)), name: line.slice(i + 1).trim() };
+  });
+
+  // ---------- Option lists ----------
+  const plain = list => list.map(v => ({ value: v, label: v }));
+
+  const treeOptions = NE_WAZA_TREE.map((item, i) => {
+    const next = NE_WAZA_TREE[i + 1];
+    const isGroup = next && next.depth > item.depth;
+    if (item.depth === 0) return { value: item.name, label: item.name.toUpperCase() };
+    const pad = "\u00a0\u00a0\u00a0".repeat(item.depth);
+    return { value: item.name, label: pad + (isGroup ? "\u25b8 " : "\u2013 ") + item.name };
+  });
+
+  const THROW_OPTIONS = plain(THROWS);
+  const GRIP_OPTIONS = plain(GRIPS);
+  const NE_OPTIONS = plain(NE_WAZA_OFFICIAL).concat(treeOptions);
+
+  // ---------- Building the form ----------
+  const TIERS = ["Tier 1", "Tier 2", "Tier 3"];
+
+  function picker(cell, headText, key, options, extraClass) {
+    const head = document.createElement("label");
+    head.className = "head" + (extraClass ? " " + extraClass : "");
+    head.htmlFor = key;
+    head.textContent = headText;
+    cell.appendChild(head);
+
+    const select = document.createElement("select");
+    select.id = key;
+    select.size = 10;
+    select.setAttribute("data-save", "");
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    }
+    cell.appendChild(select);
+
+    const customLabel = document.createElement("label");
+    customLabel.className = "custom";
+    customLabel.textContent = "Customize:";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.id = key + "-custom";
+    input.maxLength = 200;
+    input.setAttribute("data-save", "");
+    customLabel.appendChild(input);
+    cell.appendChild(customLabel);
+
+    // Picking from the list copies it into the Customize box, where it can be edited
+    select.addEventListener("change", () => { input.value = select.value; save(); });
+    input.addEventListener("input", save);
+    return head;
+  }
+
+  function addTierTag(head, index) {
+    const tag = document.createElement("span");
+    tag.className = "tier-tag";
+    tag.textContent = " \u00b7 " + TIERS[index % 3];
+    head.appendChild(tag);
+  }
+
+  const nageGrid = document.getElementById("nage-grid");
+  for (let i = 1; i <= 6; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    const head = picker(cell, "Nage-Waza " + i, "t" + i, THROW_OPTIONS);
+    addTierTag(head, i - 1);
+    picker(cell, "GRIP " + i, "g" + i, GRIP_OPTIONS, "grip");
+    nageGrid.appendChild(cell);
+  }
+
+  const neGrid = document.getElementById("ne-grid");
+  for (let i = 1; i <= 6; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    picker(cell, "Ne Waza " + i, "nw" + i, NE_OPTIONS);
+    neGrid.appendChild(cell);
+  }
+
+  // ---------- Remember selections in this browser ----------
+  const STORE = "judo-daily-dozen-v1";
+
+  function save() {
+    try {
+      const data = {};
+      document.querySelectorAll("[data-save]").forEach(el => {
+        data[el.id] = el.tagName === "SELECT" ? el.selectedIndex : el.value;
+      });
+      localStorage.setItem(STORE, JSON.stringify(data));
+    } catch (e) { /* storage unavailable; ignore */ }
+  }
+
+  function restore() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORE) || "{}");
+      for (const [id, v] of Object.entries(data)) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (el.tagName === "SELECT") el.selectedIndex = v; else el.value = v;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  document.getElementById("judoname").addEventListener("input", save);
+  restore();
+
+  document.getElementById("clear").addEventListener("click", () => {
+    if (!confirm("Clear all selections?")) return;
+    document.querySelectorAll("[data-save]").forEach(el => {
+      if (el.tagName === "SELECT") el.selectedIndex = -1; else el.value = "";
+    });
+    try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
+  });
+
+  // ---------- Generating the worksheet ----------
+  function valueOf(key) {
+    const custom = document.getElementById(key + "-custom").value.trim();
+    return custom || document.getElementById(key).value || "";
+  }
+
+  const ORDER = [
+    ["Ne Waza 1", "nw1", null],
+    ["Ne Waza 2", "nw2", null],
+    ["Ne Waza 3", "nw3", null],
+    ["Nage Waza 1", "t1", "g1"],
+    ["Nage Waza 2", "t2", "g2"],
+    ["Nage Waza 3", "t3", "g3"],
+    ["Ne Waza 4", "nw4", null],
+    ["Ne Waza 5", "nw5", null],
+    ["Ne Waza 6", "nw6", null],
+    ["Nage Waza 4", "t4", "g4"],
+    ["Nage Waza 5", "t5", "g5"],
+    ["Nage Waza 6", "t6", "g6"]
+  ];
+
+  function cell(tag, text) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    return el;
+  }
+
+  document.getElementById("generate").addEventListener("click", () => {
+    const name = document.getElementById("judoname").value.trim() || "YOU";
+    document.getElementById("sheet-title").textContent = "Daily Dozen Judo workout sheet for " + name;
+
+    const body = document.getElementById("sheet-body");
+    body.textContent = "";
+    ORDER.forEach(([ref, techKey, gripKey], i) => {
+      const tr = document.createElement("tr");
+      tr.appendChild(cell("th", String(i + 1)));
+      tr.appendChild(cell("td", ref));
+      tr.appendChild(cell("td", valueOf(techKey)));
+      tr.appendChild(cell("td", gripKey ? valueOf(gripKey) : " - "));
+      body.appendChild(tr);
+    });
+    for (let i = 0; i < 2; i++) {
+      const tr = document.createElement("tr");
+      tr.className = "blank";
+      tr.appendChild(cell("th", ""));
+      for (let c = 0; c < 3; c++) tr.appendChild(cell("td", ""));
+      body.appendChild(tr);
+    }
+
+    document.body.classList.add("show-sheet");
+    window.scrollTo(0, 0);
+  });
+
+  document.getElementById("edit").addEventListener("click", () => {
+    document.body.classList.remove("show-sheet");
+  });
+
+  document.getElementById("print").addEventListener("click", () => window.print());
+})();
+</script>
+</body>
+</html>
